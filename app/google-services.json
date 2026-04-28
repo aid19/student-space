@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "179426246778",
+    "project_id": "studentspace-ec896",
+    "storage_bucket": "studentspace-ec896.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:179426246778:android:e2278515b2f8e9fb42bbc3",
+        "android_client_info": {
+          "package_name": "com.example.testapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKnwbQdQ-2ESj3VicKsSsq9bBgHzaFUdQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
