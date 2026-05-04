@@ -34,10 +34,12 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun AppScreen() {
-    var isLoggedIn by remember { mutableStateOf(false) }
+    var isLoggedIn by remember {
+        mutableStateOf(FirebaseAuth.getInstance().currentUser != null)
+    }
 
     if (isLoggedIn) {
-        GroupsScreen()
+        GroupsScreen(onLogout = { isLoggedIn = false })
     } else {
         AuthScreen(onLoginSuccess = { isLoggedIn = true })
     }
@@ -105,12 +107,12 @@ fun AuthScreen(onLoginSuccess: () -> Unit) {
 }
 
 @Composable
-fun GroupsScreen() {
+fun GroupsScreen(onLogout: () -> Unit) {
     val db = FirebaseFirestore.getInstance()
     val auth = FirebaseAuth.getInstance()
 
     var groupName by remember { mutableStateOf("") }
-    var groups by remember { mutableStateOf(listOf<String>()) }
+    var groups by remember { mutableStateOf(listOf<Pair<String, String>>()) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -132,7 +134,7 @@ fun GroupsScreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 🔥 Input
+            // 🔥 INPUT
             OutlinedTextField(
                 value = groupName,
                 onValueChange = { groupName = it },
@@ -142,7 +144,7 @@ fun GroupsScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 🔥 Create button
+            // 🔥 CREATE
             Button(
                 onClick = {
                     val userId = auth.currentUser?.uid
@@ -156,21 +158,16 @@ fun GroupsScreen() {
 
                     val data = hashMapOf(
                         "name" to groupName,
-                        "members" to listOf(userId)
+                        "members" to listOf(userId),
+                        "ownerId" to userId
                     )
 
                     db.collection("groups")
                         .add(data)
                         .addOnSuccessListener {
                             groupName = ""
-
                             scope.launch {
                                 snackbarHostState.showSnackbar("✅ Group created!")
-                            }
-                        }
-                        .addOnFailureListener {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("❌ Error creating group")
                             }
                         }
                 },
@@ -181,29 +178,42 @@ fun GroupsScreen() {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // 🔥 Load button
+            // 🔥 LOAD ONLY USER GROUPS
             OutlinedButton(
                 onClick = {
+                    val userId = auth.currentUser?.uid
+
                     db.collection("groups")
+                        .whereArrayContains("members", userId!!)
                         .get()
                         .addOnSuccessListener { result ->
-                            groups = result.map { it.getString("name") ?: "" }
-                        }
-                        .addOnFailureListener {
-                            scope.launch {
-                                snackbarHostState.showSnackbar("❌ Failed to load groups")
+                            groups = result.map {
+                                Pair(it.id, it.getString("name") ?: "")
                             }
                         }
                 },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("📥 Load groups")
+                Text("📥 Load my groups")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 🔥 LOGOUT
+            OutlinedButton(
+                onClick = {
+                    FirebaseAuth.getInstance().signOut()
+                    onLogout() // 🔥 ВАЖНО
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("🚪 Logout")
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // 🔥 Groups list
-            groups.forEach { group ->
+            // 🔥 LIST
+            groups.forEach { (id, name) ->
 
                 Card(
                     modifier = Modifier
@@ -218,42 +228,42 @@ fun GroupsScreen() {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
 
-                        Text(group)
+                        Text(name)
 
-                        Button(
-                            onClick = {
+                        Row {
+
+                            // 🔥 JOIN
+                            Button(onClick = {
                                 val userId = auth.currentUser?.uid
 
-                                if (userId == null) {
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar("❌ Not logged in")
-                                    }
-                                    return@Button
-                                }
-
                                 db.collection("groups")
-                                    .whereEqualTo("name", group)
-                                    .get()
-                                    .addOnSuccessListener { result ->
-                                        result.documents.forEach { doc ->
-                                            doc.reference.update(
-                                                "members",
-                                                com.google.firebase.firestore.FieldValue.arrayUnion(userId)
-                                            )
-                                        }
+                                    .document(id)
+                                    .update(
+                                        "members",
+                                        com.google.firebase.firestore.FieldValue.arrayUnion(userId)
+                                    )
 
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("✅ Joined $group!")
-                                        }
-                                    }
-                                    .addOnFailureListener {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar("❌ Failed to join")
-                                        }
-                                    }
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("✅ Joined $name")
+                                }
+                            }) {
+                                Text("Join")
                             }
-                        ) {
-                            Text("Join")
+
+                            Spacer(modifier = Modifier.width(8.dp))
+
+                            // 🔥 DELETE
+                            Button(onClick = {
+                                db.collection("groups")
+                                    .document(id)
+                                    .delete()
+
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("🗑 Deleted $name")
+                                }
+                            }) {
+                                Text("Delete")
+                            }
                         }
                     }
                 }
